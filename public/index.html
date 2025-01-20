@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .file-input {
+            margin-bottom: 10px;
+        }
+        .upload-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .upload-btn:hover {
+            background-color: #45a049;
+        }
+        .upload-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+        .file-list {
+            margin-top: 20px;
+        }
+        .file-item {
+            padding: 10px;
+            border: 1px solid #eee;
+            margin-bottom: 5px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>文件上传测试</h1>
+    
+    <div class="upload-container">
+        <h2>上传新文件</h2>
+        <p>支持的文件类型：.md, .doc, .docx, .pdf, .xls, .xlsx</p>
+        <input type="file" id="fileInput" class="file-input" accept=".md,.doc,.docx,.pdf,.xls,.xlsx" onchange="handleFileChange()">
+        <button onclick="uploadFile()" id="uploadBtn" class="upload-btn">上传文件</button>
+        <div id="error" class="error"></div>
+        <div id="result" class="result"></div>
+        <div id="checkResult" class="result" style="background-color: #f8f9fa;"></div>
+    </div>
+
+    <div class="file-list">
+        <h2>已上传文件列表</h2>
+        <div id="fileList"></div>
+    </div>
+
+    <script>
+        async function handleFileChange() {
+            const fileInput = document.getElementById('fileInput');
+            const checkResultDiv = document.getElementById('checkResult');
+            const uploadBtn = document.getElementById('uploadBtn');
+            
+            if (!fileInput.files.length) {
+                checkResultDiv.style.display = 'none';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                checkResultDiv.style.display = 'block';
+                checkResultDiv.textContent = '正在检查文件...';
+                uploadBtn.disabled = true;
+
+                const response = await fetch('http://localhost:3000/files/check', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.exists) {
+                    checkResultDiv.innerHTML = `
+                        <div style="color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                            <strong>提示：</strong>系统中已存在相同内容的文件：<br>
+                            文件名：${data.file.originalname}<br>
+                            大小：${formatFileSize(data.file.size)}<br>
+                            <button onclick="downloadFile('${data.file.id}', '${data.file.originalname}')" style="margin-top: 5px;">
+                                下载现有文件
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    checkResultDiv.innerHTML = `
+                        <div style="color: #155724; background-color: #d4edda; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                            <strong>提示：</strong>这是一个新文件，可以继续上传。
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                checkResultDiv.innerHTML = `
+                    <div style="color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>错误：</strong>检查文件时发生错误。
+                    </div>
+                `;
+                console.error('Error:', error);
+            } finally {
+                uploadBtn.disabled = false;
+            }
+        }
+
+        async function uploadFile() {
+            const errorDiv = document.getElementById('error');
+            errorDiv.style.display = 'none';
+            
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showError('请选择要上传的文件');
+                return;
+            }
+
+            // 获取认证令牌
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+                showError('请先登录');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                // 先检查文件是否已存在
+                const checkResponse = await fetch('http://localhost:3000/files/check', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                if (!checkResponse.ok) {
+                    if (checkResponse.status === 401) {
+                        localStorage.removeItem('authToken');
+                        throw new Error('认证已过期，请重新登录');
+                    }
+                    throw new Error('检查文件时发生错误');
+                }
+                
+                const checkResult = await checkResponse.json();
+                
+                if (checkResult.exists) {
+                    // 如果文件已存在，直接使用现有文件
+                    handleUploadSuccess(checkResult.file);
+                    return;
+                }
+                
+                // 如果文件不存在，执行上传
+                const uploadResponse = await fetch('http://localhost:3000/files/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: formData
+                });
+                
+                if (!uploadResponse.ok) {
+                    if (uploadResponse.status === 401) {
+                        localStorage.removeItem('authToken');
+                        throw new Error('认证已过期，请重新登录');
+                    }
+                    const errorData = await uploadResponse.json();
+                    throw new Error(errorData.message || '上传文件时发生错误');
+                }
+                
+                const result = await uploadResponse.json();
+                handleUploadSuccess(result);
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message || '上传文件时发生错误');
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function handleUploadSuccess(file) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h3>文件上传成功！</h3>
+                <pre>${JSON.stringify(file, null, 2)}</pre>
+            `;
+            resultDiv.style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            addFileToList(file);
+            document.getElementById('fileInput').value = '';
+            document.getElementById('checkResult').style.display = 'none';
+        }
+
+        function addFileToList(file) {
+            const fileList = document.getElementById('fileList');
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <strong>文件名：</strong>${file.originalname}<br>
+                <strong>大小：</strong>${formatFileSize(file.size)}<br>
+                <button onclick="downloadFile('${file.id}', '${file.originalname}')">下载</button>
+            `;
+            fileList.insertBefore(fileItem, fileList.firstChild);
+        }
+
+        async function downloadFile(id, originalname) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.style.display = 'none';
+            
+            try {
+                // 获取认证令牌（这里假设存储在 localStorage 中）
+                const authToken = localStorage.getItem('authToken');
+                if (!authToken) {
+                    throw new Error('请先登录');
+                }
+
+                // 先获取访问令牌
+                const response = await fetch(`http://localhost:3000/files/${id}/access-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // 如果是认证错误，可能需要重新登录
+                        localStorage.removeItem('authToken');
+                        throw new Error('认证已过期，请重新登录');
+                    }
+                    throw new Error(data.message || '获取访问令牌失败');
+                }
+
+                // 构建访问URL
+                const accessUrl = `http://localhost:3000/files/${data.fileId}?token=${data.accessToken}`;
+                
+                // 创建一个隐藏的 iframe 来处理下载
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                
+                // 监听 iframe 的加载事件来检测错误
+                iframe.onload = () => {
+                    try {
+                        // 尝试访问 iframe 的内容，如果出错说明是跨域错误，即下载成功
+                        const doc = iframe.contentDocument || iframe.contentWindow.document;
+                        // 如果能够访问内容，说明返回了错误页面
+                        const errorContent = doc.body.textContent;
+                        const errorData = JSON.parse(errorContent);
+                        if (errorData.statusCode === 401) {
+                            localStorage.removeItem('authToken');
+                            showError('认证已过期，请重新登录');
+                        } else {
+                            showError(errorData.message || '下载文件时发生错误');
+                        }
+                    } catch (e) {
+                        // 跨域错误，说明下载成功
+                    } finally {
+                        // 清理 iframe
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                        }, 1000);
+                    }
+                };
+                
+                // 开始下载
+                iframe.src = accessUrl;
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message || '下载文件时发生错误');
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
