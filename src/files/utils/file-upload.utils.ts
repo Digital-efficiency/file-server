@@ -3,6 +3,7 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 
 // 定义允许的文件类型
 const ALLOWED_FILE_TYPES = {
+  // Document types
   '.md': ['text/markdown', 'text/plain', 'text/x-markdown', 'application/octet-stream'],
   '.doc': ['application/msword', 'application/octet-stream'],
   '.docx': [
@@ -15,6 +16,22 @@ const ALLOWED_FILE_TYPES = {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/octet-stream'
   ],
+  // Image types
+  '.jpg': ['image/jpeg', 'image/pjpeg', 'application/octet-stream'],
+  '.jpeg': ['image/jpeg', 'image/pjpeg', 'application/octet-stream'],
+  '.png': ['image/png', 'application/octet-stream'],
+  '.gif': ['image/gif', 'application/octet-stream'],
+  '.webp': ['image/webp', 'application/octet-stream'],
+  // Video types
+  '.mp4': ['video/mp4', 'application/octet-stream'],
+  '.webm': ['video/webm', 'application/octet-stream'],
+  '.avi': ['video/x-msvideo', 'application/octet-stream'],
+  '.mov': ['video/quicktime', 'application/octet-stream'],
+  // Audio types
+  '.mp3': ['audio/mpeg', 'application/octet-stream'],
+  '.wav': ['audio/wav', 'application/octet-stream'],
+  '.ogg': ['audio/ogg', 'application/octet-stream'],
+  '.m4a': ['audio/mp4', 'application/octet-stream']
 };
 
 export const documentFileFilter = (req: any, file: any, callback: any) => {
@@ -22,7 +39,7 @@ export const documentFileFilter = (req: any, file: any, callback: any) => {
   if (!ALLOWED_FILE_TYPES[ext]) {
     return callback(
       new HttpException(
-        'Only markdown, Word documents, PDF files, and Excel spreadsheets are allowed!',
+        'Only documents (markdown, Word, PDF, Excel) and media files (images, videos, audio) are allowed!',
         HttpStatus.BAD_REQUEST,
       ),
       false,

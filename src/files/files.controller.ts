@@ -44,7 +44,7 @@ export class FilesController {
       }),
       fileFilter: documentFileFilter,
       limits: {
-        fileSize: 10 * 1024 * 1024, // 限制文件大小为10MB
+        fileSize: 100 * 1024 * 1024, // 限制文件大小为100MB
       },
     }),
   )
@@ -85,7 +85,7 @@ export class FilesController {
       }),
       fileFilter: documentFileFilter,
       limits: {
-        fileSize: 10 * 1024 * 1024, // 限制文件大小为10MB
+        fileSize: 100 * 1024 * 1024, // 限制文件大小为100MB
       },
     }),
   )
