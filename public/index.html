@@ -81,6 +81,12 @@
             const fileInput = document.getElementById('fileInput');
             const checkResultDiv = document.getElementById('checkResult');
             const uploadBtn = document.getElementById('uploadBtn');
+
+            const authToken = localStorage.getItem('authToken');
+            if (!authToken) {
+                showError('请先登录');
+                return;
+            }
             
             if (!fileInput.files.length) {
                 checkResultDiv.style.display = 'none';
@@ -96,8 +102,11 @@
                 checkResultDiv.textContent = '正在检查文件...';
                 uploadBtn.disabled = true;
 
-                const response = await fetch('http://localhost:3000/files/check', {
+                const response = await fetch('http://localhost:3001/files/check', {
                     method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    },
                     body: formData
                 });
 
@@ -157,7 +166,7 @@
             
             try {
                 // 先检查文件是否已存在
-                const checkResponse = await fetch('http://localhost:3000/files/check', {
+                const checkResponse = await fetch('http://localhost:3001/files/check', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${authToken}`
@@ -182,7 +191,7 @@
                 }
                 
                 // 如果文件不存在，执行上传
-                const uploadResponse = await fetch('http://localhost:3000/files/upload', {
+                const uploadResponse = await fetch('http://localhost:3000/docs/upload', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${authToken}`
@@ -253,7 +262,7 @@
                 }
 
                 // 先获取访问令牌
-                const response = await fetch(`http://localhost:3000/files/${id}/access-token`, {
+                const response = await fetch(`http://localhost:3001/files/${id}/access-token`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${authToken}`
@@ -272,7 +281,7 @@
                 }
 
                 // 构建访问URL
-                const accessUrl = `http://localhost:3000/files/${data.fileId}?token=${data.accessToken}`;
+                const accessUrl = `http://localhost:3001/files/${data.fileId}?token=${data.accessToken}`;
                 
                 // 创建一个隐藏的 iframe 来处理下载
                 const iframe = document.createElement('iframe');

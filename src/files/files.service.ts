@@ -52,6 +52,27 @@ export class FilesService {
       return await this.fileRepository.save(existingFile);
     }
     
+    // 将文件从临时目录移动到最终目录
+    try {
+      const tempPath = path.join(process.cwd(), createFileInput.path);
+      const finalPath = path.join(process.cwd(), 'uploads', path.basename(createFileInput.path));
+      
+      // 确保目标目录存在
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      // 移动文件
+      fs.renameSync(tempPath, finalPath);
+      
+      // 更新文件路径
+      createFileInput.path = `uploads/${path.basename(createFileInput.path)}`;
+    } catch (error) {
+      console.error('Error moving file:', error);
+      throw new Error('Failed to move file to final location');
+    }
+    
     // If no duplicate found, create new file record
     const file = this.fileRepository.create({
       ...createFileInput,

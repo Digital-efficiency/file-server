@@ -26,26 +26,18 @@ import * as fs from 'fs';
 import { AuthGuard } from '../auth/auth.guard';
 
 @Controller('files')
+@UseGuards(AuthGuard)
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
-  @Get()
-  async findAll(): Promise<File[]> {
-    return this.filesService.findAll();
-  }
-
   @Post('upload')
-  @UseGuards(AuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads',
+        destination: './temp-uploads',
         filename: editFileName,
       }),
       fileFilter: documentFileFilter,
-      limits: {
-        fileSize: 100 * 1024 * 1024, // 限制文件大小为100MB
-      },
     }),
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
@@ -59,7 +51,7 @@ export class FilesController {
     try {
       const fileRecord = await this.filesService.create({
         filename: file.filename,
-        path: `uploads/${file.filename}`,
+        path: `temp-uploads/${file.filename}`,
         mimetype: file.mimetype,
         size: file.size,
       });
@@ -71,12 +63,15 @@ export class FilesController {
         size: fileRecord.size,
       };
     } catch (error) {
+      // 确保在发生错误时删除临时文件
+      try {
+        fs.unlinkSync(join(process.cwd(), `temp-uploads/${file.filename}`));
+      } catch {}
       throw error;
     }
   }
 
   @Post('check')
-  @UseGuards(AuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -175,9 +170,9 @@ export class FilesController {
     }
   }
 
-  @Post(':id/access-token')
-  @UseGuards(AuthGuard)
+  @Get(':id/access-token')
   async generateAccessToken(@Param('id') id: string) {
+    console.log('Generate access token for file ID:', id);
     try {
       const accessToken = await this.filesService.generateAccessToken(id);
       
